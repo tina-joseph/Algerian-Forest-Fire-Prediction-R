@@ -1,0 +1,206 @@
+---
+title: "ModelingR"
+output: word_document
+date: "2023-05-04"
+---
+
+```{r}
+# load required libraries
+library(ISLR)
+library(corrplot)
+library(car)
+library(dplyr)
+library(caret)
+library(caTools)
+library(randomForest)
+```
+
+
+```{r}
+# read the csv file into a dataframe
+data = read.csv("C:/IUPUI/Data Analytics/Project/Algerian_forest_fires_dataset_UPDATE.csv", header = TRUE)
+```
+
+Convert categorical columns to factors. Remove day column
+
+```{r}
+data$Classes = trimws(data$Classes)
+data[data == ""] = NA
+
+# convert factor columns and numerics
+data$Classes = factor(data$Classes)
+data$Region = factor(data$Region)
+data$month = factor(data$month)
+data$DC = as.numeric(data$DC)
+data$FWI = as.numeric(data$FWI)
+
+# remove columns "col2" and "col3"
+data = subset(data, select = -c(day, year))
+
+# count the number of missing values in each column
+colSums(is.na(data))
+
+# remove rows with missing values
+data = na.omit(data)
+```
+
+```{r}
+# perform some exploratory data analysis
+summary(data) # view summary statistics
+
+# calculate the correlation matrix
+cor_matrix <- cor(data[,-c(1,ncol(data)-1, ncol(data))])
+# create the correlation heatmap
+corrplot(cor_matrix, method = "color")
+
+pairs(data) # view scatterplot matrix
+```
+From the correlation matrix and heatmap there seems to be high correlation between some of the variables. To avoid the effect of multicollinearity we will remove variables with correlation greater than 0.7
+
+
+```{r}
+
+data0 = data
+
+# Set threshold for VIF
+vif_thresh <- 20
+
+# Start while loop
+while (TRUE) {
+  
+  # Calculate VIF values
+  vif_vals <- vif(glm(Classes ~ ., 
+             data = data0, family = binomial()))
+  
+  if (length(vif_vals) > 9){
+      vif_vals = vif_vals[order(vif_vals[,1], decreasing = TRUE),]
+      high_vif_vars = rownames(vif_vals)[vif_vals > vif_thresh]
+  }
+  else {
+      vif_vals = sort(vif_vals, decreasing = TRUE)
+      high_vif_vars = names(vif_vals[vif_vals > vif_thresh])
+  }
+  
+  # If there are no high VIF variables, exit loop
+  if (length(high_vif_vars) == 0) {
+    break
+  }
+  
+  # Remove one high VIF variable
+  data0 <- data0[, !names(data0) %in% high_vif_vars[1]]
+  
+}
+
+# View the resulting data frame
+data0
+
+```
+
+```{r}
+set.seed(123)
+train_index <- createDataPartition(data0$Classes, p = 0.7, list = FALSE)
+train_data <- data0[train_index, ]
+test_data <- data0[-train_index, ]
+```
+
+```{r}
+glm.full = glm(Classes ~ ., data = train_data, family = "binomial")
+summary(glm.full)
+```
+From the p-values we will have a significance level of 0.3. Based on that we will select features.
+
+```{r}
+selected_vars <- names(summary(glm.full)$coefficients[,4] < 0.3)[summary(glm.full)$coefficients[,4] < 0.3]
+
+selected_vars 
+```
+
+
+```{r}
+logit_model <- glm(Classes ~ Temperature + RH + Rain + ISI, data = train_data, family = binomial())
+
+summary(logit_model)
+
+predicted_response <- predict(logit_model, newdata = test_data, type = "response")
+```
+
+
+```{r}
+binary_predictions <- ifelse(predicted_response > 0.5, "not fire", "fire")
+table(binary_predictions, test_data$Classes)
+```
+From the confusion matrix, we see the model only makes one incorrect classification. Proceed to calculate metrics.
+
+```{r}
+cm <- confusionMatrix(as.factor(binary_predictions), test_data$Classes)
+cm
+```
+Lets perform a more complex model like Random Forest and check the results. We will use the complete data and then test with the feature selected variables
+
+```{r}
+set.seed(123)
+train_index <- createDataPartition(data$Classes, p = 0.7, list = FALSE)
+train_data <- data[train_index, ]
+test_data <- data[-train_index, ]
+
+test_labels <- test_data[,12]
+train_labels <- train_data[,12]
+train_data <- train_data[,-12]
+test_data <- test_data[,-12]
+```
+
+
+Tune the Random Forest model using the tuneRF function
+
+```{r}
+# Define the grid of hyperparameters to tune
+model <- tuneRF(
+  x = train_data,
+  y = train_labels,
+  mtryStart = 1,
+  ntreeTry=50,
+  stepFactor=1,
+  improve = 0.01,
+  trace = TRUE,
+  doBest = TRUE,
+)
+```
+```{r}
+# Extract the best parameters and OOB error from the tuneRF output
+best_mtry <- model$mtry
+best_ntree <- model$ntree
+
+# Print the best parameters and OOB error
+print(paste0("Best mtry: ", best_mtry))
+print(paste0("Best ntree: ", best_ntree))
+
+```
+
+
+```{r}
+# Make predictions on the test set
+predictions <- predict(model, newdata = test_data)
+
+# Calculate evaluation metrics
+cm <- confusionMatrix(predictions, test_labels)
+print(cm)
+
+```
+Lets look at feature importance from our Random Forest model,
+
+```{r}
+varImpPlot(model,
+           sort = T,
+           n.var = 10,
+           main = "Top 10 Variable Importance")
+
+```
+
+We see the following variables to be most important,
+
+- Initial Spread Index (ISI)
+- Fine Fuel Moisture Code (FFMC) index
+- Fire Weather Index (FWI) Index
+
+
+Comparing Logistic Regression and Random Forest we see both models to perform equally well. In this case we see a simpler model like Logistic Regression is able to perform equally to a complex model like Random Forest.

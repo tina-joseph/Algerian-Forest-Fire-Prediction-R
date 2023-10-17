@@ -1,0 +1,154 @@
+---
+title: "ModelingKNN"
+output: word_document
+date: "2023-05-07"
+---
+
+```{r}
+# load required libraries
+library(class)
+library(caret)
+library(dplyr)
+```
+
+```{r}
+# read the csv file into a dataframe
+data = read.csv("C:/IUPUI/Data Analytics/Project/Algerian_forest_fires_dataset_UPDATE.csv", header = TRUE)
+
+str(data)
+```
+
+```{r}
+data$Classes <- trimws(data$Classes)
+
+unique(data$Classes)
+```
+
+```{r}
+data <- data[data$Classes != "", ]
+sum(is.na(data))
+```
+
+```{r}
+data$DC <- as.numeric(data$DC)
+data$FWI <- as.numeric(data$FWI)
+data$Classes <- ifelse(data$Classes == "not fire", 0, 1)
+data$Region <- ifelse(data$Region == "Bejaia", 0, 1)
+str(data)
+```
+
+```{r}
+# to remove the date,month, year 
+new_data<-data[, -(1:3)]
+```
+
+Lets look at the correlation matrix
+
+```{r}
+corr_matrix <- cor(new_data[,1:12])
+corr_matrix
+```
+
+From the ModelingLogisticRForest.RMd, we see that the values of feature selection were 
+* Temperature
+* RH
+* Ws
+* Rain
+* DMC
+* ISI
+* Region
+
+```{r}
+overalldata = new_data[, c(1, 2, 3, 4, 6, 8, 12, 11)]
+head(overalldata)
+```
+
+```{r}
+#randomize the dataset:
+overalldata = overalldata[sample(nrow(overalldata)), ]
+```
+
+
+```{r}
+# Split data into training and testing sets
+set.seed(123) # for reproducibility
+train_index <- sample(1:nrow(overalldata), size = 0.7*nrow(overalldata), replace = FALSE)
+train_data <- overalldata[train_index, ]
+test_data <- overalldata[-train_index, ]
+```
+
+```{r}
+# Standardize the data
+train_data[, 1:6] <- scale(train_data[, 1:6])
+test_data[, 1:6] <- scale(test_data[, 1:6])
+```
+
+```{r}
+# Train the KNN classifier model
+knn_model <- knn(train = train_data[, 1:6], test = test_data[, 1:6], cl = train_data$Classes, k = 5)
+```
+
+```{r}
+# Evaluate the model
+confusion_matrix <- table(knn_model, test_data$Classes)
+accuracy <- sum(diag(confusion_matrix))/sum(confusion_matrix)
+print(paste0("Accuracy: ", round(accuracy, 4)))
+```
+
+In the above, we are using a KNN model with k=5. This means that the model will consider the 5 nearest neighbors to make predictions.
+
+To finetune the KNN model, we can explore different values of k and choose the one that gives the best performance on a validation set. We can do this using cross-validation, which involves splitting the data into several folds and training the model on each fold while using the remaining folds for validation.
+
+
+```{r}
+# Define the parameter grid to search over
+param_grid <- expand.grid(k = 1:20)
+
+# Loop through values of k and train KNN models
+accuracy_list <- numeric()
+for (i in 1:nrow(param_grid)) {
+  k <- param_grid$k[i]
+  knn_model <- knn(train_data[, 1:6], test_data[, 1:6], train_data$Classes, k = k)
+  predictions <- as.factor(knn_model)
+  confusion_matrix <- table(predictions, test_data$Classes)
+  accuracy <- sum(diag(confusion_matrix))/sum(confusion_matrix)
+  accuracy_list[i] <- accuracy
+  print(paste0("k = ", k, ", accuracy = ", round(accuracy, 4)))
+}
+
+# Find the value of k with highest accuracy
+best_k <- param_grid$k[which.max(accuracy_list)]
+print(paste0("Best value of k: ", best_k))
+
+# Train the KNN model with the best value of k
+knn_model <- knn(train_data[, 1:6], test_data[, 1:6], train_data$Classes, k = best_k)
+
+# Evaluate the model on the test set
+predictions <- as.factor(knn_model)
+confusion_matrix <- table(predictions, test_data$Classes)
+accuracy <- sum(diag(confusion_matrix))/sum(confusion_matrix)
+print(paste0("Accuracy: ", round(accuracy, 4)))
+
+# Plot the accuracy variation with k
+plot(param_grid$k, accuracy_list, type = "b", xlab = "k", ylab = "Accuracy")
+```
+
+The best value of K  is K= 6
+
+```{r}
+# Train the KNN classifier model
+knn_model <- knn(train = train_data[, 1:6], test = test_data[, 1:6], cl = train_data$Classes, k = 6)
+```
+
+```{r}
+# Evaluate the model
+confusion_matrix <- table(knn_model, test_data$Classes)
+accuracy <- sum(diag(confusion_matrix))/sum(confusion_matrix)
+print(paste0("Accuracy: ", round(accuracy, 4)))
+```
+
+```{r}
+cm <- confusionMatrix(as.factor(predictions), as.factor(test_data$Classes))
+print(cm)
+```
+

@@ -1,0 +1,200 @@
+---
+title: "DA_Project_Data Preprocessing and Analysis"
+output:
+  html_document:
+    df_print: paged
+---
+
+## Data Wrangling
+
+\n Loading the Dataset.
+```{r}
+data <- read.csv("C:/Users/tinaj/Downloads/Algerian_forest_fires_dataset_UPDATE.csv")
+str(data)
+```
+
+\n Exploring data range and performing additional cleaning on the dataset.
+```{r}
+sapply(data, range)
+data$Classes <- trimws(data$Classes)
+unique(data$Classes)
+data <- data[data$Classes != "", ]
+sum(is.na(data))
+```
+
+\n Converting variables into appropriate data types/format.
+```{r}
+data$DC <- as.numeric(data$DC)
+data$FWI <- as.numeric(data$FWI)
+data$Classes <- ifelse(data$Classes == "not fire", 0, 1)
+data$Classes <- factor(data$Classes)
+data$Region <- ifelse(data$Region == "Bejaia", 0, 1)
+data$Region <- factor(data$Region)
+str(data)
+```
+
+
+To remove the columns 'day','month','year'
+```{r}
+# to remove the date,month, year 
+#new_data<-data[, -(1:3)]
+```
+
+\n 
+## Data Visualization 
+
+\n 
+#### Pie chart of Distribution of Classes  variable in the dataset.
+```{r}
+par(mfrow=c(1,1))
+percentage <- prop.table(table(data$Classes)) * 100
+classes_labels <- c("Fire", "Not Fire")
+colors <- c("yellow", "maroon")
+pie(percentage, labels=classes_labels, col=colors, main="Pie Chart of Classes")
+```
+\n\n
+Based on the pie chart, the majority of the observations in the dataset are labeled as "Not Fire".
+
+\n\n
+#### Scatter plot to identify the patterns and tends of variables
+```{r}
+ par(mfrow=c(2,2))
+ # Plot 1
+ plot(data$Temperature, data$FFMC, main = "Scatter plot of Temperature vs FFMC", xlab = "Temperature", ylab = "FFMC")
+ abline(lm(data$FFMC ~ data$Temperature), col="red")
+ # Plot 2
+ plot(data$Temperature, data$Rain, main = "Scatter plot of Temperature vs Rain", xlab = "Temperature", ylab = "Rain")
+ abline(lm(data$Rain ~ data$Temperature), col="red")
+ # Plot 3
+ plot(data$Temperature, data$DMC, main = "Scatter plot of Temperature vs DMC", xlab = "Temperature", ylab = "DMC")
+ abline(lm(data$DMC ~ data$Temperature), col="red")
+ # Plot 4
+ plot(data$Temperature, data$RH, main = "Scatter plot of Temperature vs RH", xlab = "Temperature", ylab = "RH")
+ abline(lm(data$RH ~ data$Temperature), col="red")
+```
+\n
+\n
+
+Based on the scatter plots, we can make the following inferences:\n
+Plot 1: shows a moderate to strong positive correlation between Temperature and FFMC, with higher temperatures generally corresponding to higher FFMC values.\m
+Plot 2: shows a weak negative correlation between Temperature and Rain, with higher temperatures generally corresponding to lower levels of rainfall.\n
+Plot 3: shows a moderate positive correlation between Temperature and DMC, with higher temperatures generally corresponding to higher DMC values.\n
+Plot 4 shows a moderately strong negative correlation between Temperature and RH, with higher temperatures generally corresponding to lower levels of relative humidity.\n\n
+
+\n\n 
+#### Pairs Plot of the dataset
+```{r}
+pairs(data[, -c(1:3, 14:15)])
+```
+\n 
+\n
+From the plot, we can see that there are some significant correlations among the variables in the dataset. In particular, (temperature and ISI), (DMC and DC), (DMC and BUI),( ISI snd FWI) appear to be closely related with postive correlation.
+
+\n\n 
+#### Histogram of the distribution of values across variables 
+```{r}
+par(mfrow=c(2,5))
+hist(data$Temperature, col = "violet")
+hist(data$RH,col = "powderblue")
+hist(data$Ws,col = "violet")
+hist(data$Rain,col = "powderblue")
+hist(data$FFMC,col = "violet")
+hist(data$DMC,col = "powderblue")
+hist(data$DC,col = "violet")
+hist(data$ISI,col = "powderblue")
+hist(data$BUI,col = "violet")
+hist(data$FWI,col = "powderblue")
+```
+\n 
+\n From the histograms, we can see that the variables Temperature,RH and Ws are roughly symmetric or normally distributed, while Rain, DMC, DC, ISI, BUI, and FWI are skewed to the right or positively skewed whereas FFMC is skewed to the left.
+
+
+\n\n 
+#### Normality test - QQ-plot
+```{r}
+par(mfrow=c(2,5))
+qqnorm(data$Temperature, main = "Q-Q Plot-Temperature")
+qqline(data$Temperature)
+qqnorm(data$RH, main = "Q-Q Plot-RH")
+qqline(data$RH)
+qqnorm(data$Ws, main = "Q-Q Plot-Ws")
+qqline(data$Ws)
+qqnorm(data$Rain, main = "Q-Q Plot-Rain")
+qqline(data$Rain)
+qqnorm(data$DMC, main = "Q-Q Plot-DMC")
+qqline(data$DMC)
+qqnorm(data$FFMC, main = "Q-Q Plot-FFMC")
+qqline(data$FFMC)
+qqnorm(data$DC, main = "Q-Q Plot-DC")
+qqline(data$DC)
+qqnorm(data$ISI, main = "Q-Q Plot-ISI")
+qqline(data$ISI)
+qqnorm(data$BUI, main = "Q-Q Plot-BUI")
+qqline(data$BUI)
+qqnorm(data$FWI, main = "Q-Q Plot-FWI")
+qqline(data$FWI)
+```
+\n 
+\n
+Based on the QQ plots, the variables Temperature, and RH are approximately normally distributed as their QQ plots are mostly linear, but on observing further Temperature doesn't show proper normal distribution. On the other hand, the QQ plots for Rain, FFMC, DMC, DC, ISI, BUI, and FWI deviate from the straight line, indicating that these variables are not normally distributed.
+
+\n\n 
+## Kruskal-Walis Test on all variable VS target variable 'Classes'
+\n
+Here, the Kruskal-Wallis test is being used to determine whether there are significant differences between the 10 variables (Temperature, RH, Ws, Rain, FFMC, DMC, DC, ISI, BUI, and FWI) across the different categories of 'Classes' in the dataset.
+Ho: The distributions of the different variables across the different classes are equal,
+Ha: Atleast one of the distributions is different. 
+```{r}
+result <- lapply(data[, 4:13], function(x) kruskal.test(x ~ Classes, data = data))
+p_value <- sapply(result, function(x) x$p.value)
+names(p_value) <- names(data)[4:13]
+p_value
+```
+\n
+By observing the resultant p-values from the Kruskal-Wallis test for each variable, we can infer that the variables Temperature, RH, Rain, FFMC, DMC, DC, BUI, and FWI  have p-values less than the significance level, indicating that they have significant differences in population medians among at least two classes, while Ws has a p-value greater than the significance level, indiacting that there is no significant differences in population medians across all the classes.
+
+\n\n
+## Post-hoc Test(Dunns Test)
+```{r}
+#library(dunn.test) 
+#significant_vars <- names(p_value)[p_value < 0.05] 
+#for (var in significant_vars) {
+#    dunn_result <- dunn.test(data[[var]], data$Classes, method = "bonferroni")
+#    print(paste("Dunn's test for", var))
+#    dunn_result
+#}
+```
+\n\n
+## Correlation matrix and Heat Map
+
+```{r}
+library(corrplot) 
+data$Classes <- as.numeric(data$Classes)
+data$Region <- as.numeric(data$Region)
+(correlation_matrix <- cor(data[, -c(1:3)]))
+corrplot(correlation_matrix, method = "circle", order = "hclust")
+```
+\n 
+The correlation matrix and plot shows the correlation coefficients between each pair of variables. From whih we can identify certain variables which exhibit multicollinearity such as the variables 'DMC', 'DC', 'FWI' and 'BUI' are highly correlated with each other, with correlation coefficients inrange (0.8,0.9). Similarly the variables 'RH' is  negatively correlated with 'Temperature' and 'ISI'.
+
+
+\n
+#### Spearman Correlation test
+\n 
+Spearman's rank correlation coefficient measures the association between the variables and the 'Classes' of forest fires (0 or 1).
+```{r}
+(cor_test <- cor.test(data$Temperature, data$Classes, method = "spearman"))
+(cor_test <- cor.test(data$RH, data$Classes, method = "spearman"))
+(cor_test <- cor.test(data$Ws, data$Classes, method = "spearman"))
+(cor_test <- cor.test(data$Rain, data$Classes, method = "spearman"))
+(cor_test <- cor.test(data$FFMC, data$Classes, method = "spearman"))
+(cor_test <- cor.test(data$DMC, data$Classes, method = "spearman"))
+(cor_test <- cor.test(data$DC, data$Classes, method = "spearman"))
+(cor_test <- cor.test(data$ISI, data$Classes, method = "spearman"))
+(cor_test <- cor.test(data$BUI, data$Classes, method = "spearman"))
+(cor_test <- cor.test(data$FWI, data$Classes, method = "spearman"))
+```
+\n\n
+
+From the obtained results of 'rho' values ranging from 1 to -1, We can find that the varibles Temperature, FFMC, DMC, DC, ISI, BUI, and FWI are positively correlated. Whereas RH, Ws,and Rain are negatively correlated. From the above results 'Ws' has low correlation coefficient (rho) of -0.023 and a high p-value of 0.7169, indicating a weak and insignificant relationship with the target variable "Classes".\n
+
