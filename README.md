@@ -1,7 +1,4 @@
 # Algerian-Forest-Fire-Prediction-R
-This Git repository houses the codebase for the Algerian Forest Fire Prediction project, a comprehensive data analysis and prediction system designed to anticipate and assess forest fire incidents in Algeria. 
-
-# Algerian Forest Fire Prediction
 
 This repository contains the codebase for the Algerian Forest Fire Prediction project, focusing on accurate forest fire prediction and analysis in Algeria. Through this project, we aimed to develop robust models that accurately predict forest fire incidents based on various environmental factors. We employed advanced statistical techniques, hypothesis testing, and machine learning algorithms to achieve this goal.
 
